@@ -2,7 +2,7 @@
 
 // PARAMETERS for this pipeline:
 // SOURCE_BRANCH = "v1.0.x" // branch of source repo from which to find and sync commits to pkgs.devel repo
-// DWNSTM_BRANCH = 'web-terminal-1.0-rhel-8' // target branch in dist-git repo, eg., web-terminal-1.0-rhel-8
+// DWNSTM_BRANCH = 'web-terminal-1.1-rhel-8' // target branch in dist-git repo, eg., web-terminal-1.0-rhel-8
 
 def SOURCE_REPO = "redhat-developer/web-terminal-exec" //source repo from which to find and sync commits to pkgs.devel repo
 def DWNSTM_REPO = "containers/web-terminal-exec" // dist-git repo to use as target for everything
@@ -26,7 +26,7 @@ timeout(120) {
           submoduleCfg: [],
           userRemoteConfigs: [[url: "https://github.com/${SOURCE_REPO}.git"]]])
 
-          sh '''
+          def BOOTSTRAP = '''
           export GITHUB_TOKEN=''' + GITHUB_TOKEN + '''
           export SOURCE_REPO=''' + SOURCE_REPO + '''
           export SOURCE_BRANCH=''' + SOURCE_BRANCH + '''
@@ -37,27 +37,30 @@ timeout(120) {
           curl -L -s -S https://raw.githubusercontent.com/redhat-developer/web-terminal-operator/v1.0.x/bootstrap-sync.sh -o ./sync.sh
           chmod +x ./sync.sh
           ./sync.sh
+          '''
 
+          sh BOOTSTRAP + '''
           # initialize kerberos
           export KRB5CCNAME=/var/tmp/crw-build_ccache
           kinit "crw-build/codeready-workspaces-jenkins.rhev-ci-vms.eng.rdu2.redhat.com@REDHAT.COM" -kt ''' + CRW_KEYTAB + '''
           klist # verify working
 
-          cd "${WORKSPACE}/sources"
+          cd ${WORKSPACE}/sources
           SOURCE_SHA=$(git rev-parse HEAD)
           cd ..
 
-          cd "${WORKSPACE}/targetdwn"
+          cd ${WORKSPACE}/targetdwn
 
-          # Update the base image
+          # Update the base image. We update the base image after regenerating the template so that
+          # the underlying docker image will always be the most updated
           curl -L -s -S https://raw.githubusercontent.com/redhat-developer/codeready-workspaces/master/product/updateBaseImages.sh -o /tmp/updateBaseImages.sh
           chmod +x /tmp/updateBaseImages.sh
-          /tmp/updateBaseImages.sh -b ''' + DWNSTM_BRANCH + '''
+          /tmp/updateBaseImages.sh -b ''' + DWNSTM_BRANCH + ''' --no-commit
 
           if [[ $(git diff --name-only) ]]; then # file changed
             git add . -A
-            git commit -s -m "[sync] Updated from ${SOURCE_REPO} @ ${SOURCE_SHA:0:8} "
-            git push origin "${DWNSTM_BRANCH}"
+            git commit -s -m "[sync] Updated from ${SOURCE_REPO} @ ${SOURCE_SHA:0:8} " || true
+            git push origin ${DWNSTM_BRANCH} || true
             echo "[sync] Updated from ${SOURCE_REPO} @ ${SOURCE_SHA:0:8} "
           else
             echo "Source and downstream contents are the same. No need to sync"
