@@ -21,7 +21,7 @@ from datetime import datetime
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-CURRENT_YEAR = datetime.today().year
+CURRENT_YEAR = datetime.now().year
 
 COPYRIGHT_RE=r'Copyright \(c\) (\d+)'
 PATTERN1=r'This program and the accompanying materials are made'
@@ -41,26 +41,28 @@ def update_go_license(name, force=False):
         try:
             validated = license_lines_check(lines,pattern)
             if validated is None:
-                raise ValueError('Exception: Found an invalid license, file_name=%s, pattern=%s, success=%s' % (name, pattern, False))
+                raise ValueError(
+                    f'Exception: Found an invalid license, file_name={name}, pattern={pattern}, success=False'
+                )
+
         except ValueError as err:
             print(err.args)
             sys.exit(1)
-    print('Successfully validated license header', 'file_name=%s, success=%s' % (name, True))
+    print(
+        'Successfully validated license header',
+        f'file_name={name}, success=True',
+    )
 
 def license_lines_check(lines, pattern):
-    for i, line in enumerate(lines[:20]):
-        found = False
+    found = False
 
-        m = re.compile(pattern, re.I).search(line)
-        if not m:
-            continue
-        found=True
-
-        return found
+    for line in lines[:20]:
+        if m := re.compile(pattern, re.I).search(line):
+            return True
 
 def main():
     if len(sys.argv) == 1:
-        print('USAGE: %s FILE ...' % sys.argv[0])
+        print(f'USAGE: {sys.argv[0]} FILE ...')
         sys.exit(1)
 
     for name in sys.argv[1:]:
@@ -72,7 +74,7 @@ def main():
                 logger.exception(error)
                 raise error
         else:
-            raise NotImplementedError('Unsupported file type: %s' % name)
+            raise NotImplementedError(f'Unsupported file type: {name}')
 
 
 if __name__ == "__main__":
